@@ -65,3 +65,65 @@ spec:
 - SEV-encrypted VMs cannot contain directly-accessible host devices (that is, PCI passthrough)
 - Live Migration is not supported
 - The VMs are not attested
+
+## AMD Secure Encrypted Virtualization - Secure Nested Paging (SEV-SNP)
+
+**FEATURE STATE:** KubeVirt v0.53.0 (experimental support)
+
+[AMD Secure Encrypted Virtualization-Secure Nested Paging (SEV-SNP)](https://www.amd.com/en/developer/sev.html#:~:text=AMD%20Secure%20Encrypted%20Virtualization%2DSecure%20Nested%20Paging%20(SEV%2DSNP)) provides strong memory integrity protection against malicious hypervisor attacks like data replay and memory re-mapping, while offering additional security enhancements for VM isolation, interrupt protection, and side channel attack mitigation.
+
+### Pre-conditions
+- `WorkloadEncryptionSEV` [feature gate](../cluster_admin/activating_feature_gates.md#how-to-activate-a-feature-gate) must be enabled.
+- The guest must support [UEFI boot](../compute/virtual_hardware.md#biosuefi)
+- The host machine must support SEV-SNP
+
+### Running an SEV-SNP guest
+```yaml
+---
+apiVersion: kubevirt.io/v1
+kind: VirtualMachineInstance
+metadata:
+  labels:
+    special: vmi-fedora-snp
+  name: vmi-fedora-snp
+spec:
+  domain:
+    launchSecurity:
+      sev:
+        policy:
+          secureNestedPaging: true
+    firmware:
+      bootloader:
+        efi:
+          secureBoot: false
+    devices:
+      disks:
+      - disk:
+          bus: virtio
+        name: containerdisk
+      - disk:
+          bus: virtio
+        name: cloudinitdisk
+      disableHotplug: true
+    resources:
+      requests:
+        memory: 1024M
+  terminationGracePeriodSeconds: 0
+  volumes:
+  - containerDisk:
+      image: quay.io/containerdisks/fedora
+    name: containerdisk
+  - cloudInitNoCloud:
+      userData: |-
+        #cloud-config
+        chpasswd:
+          list: |
+            root:fedora
+          expire: False
+    name: cloudinitdisk
+```
+
+### Current Limitations
+- No support for explicitly setting the 64-bit security policy defaults to `0x00030000` which allows SMT and sets no minimum ABI version
+- Live migrations are not supported
+- VMs are currently not attested
